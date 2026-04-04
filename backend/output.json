@@ -1,0 +1,266 @@
+{
+  "slides": [
+    {
+      "scene": {
+        "elements": [
+          {
+            "backgroundColor": "#000000",
+            "fillStyle": "solid",
+            "fontSize": null,
+            "height": 200,
+            "id": "blackHoleBody",
+            "points": null,
+            "strokeColor": "#000000",
+            "strokeWidth": 2,
+            "text": null,
+            "type": "ellipse",
+            "width": 200,
+            "x": 400,
+            "y": 300
+          },
+          {
+            "backgroundColor": "transparent",
+            "fillStyle": "solid",
+            "fontSize": 24,
+            "height": null,
+            "id": "blackHoleLabel",
+            "points": null,
+            "strokeColor": "transparent",
+            "strokeWidth": 0,
+            "text": "Black Hole",
+            "type": "text",
+            "width": null,
+            "x": 425,
+            "y": 285
+          },
+          {
+            "backgroundColor": "transparent",
+            "fillStyle": "solid",
+            "fontSize": null,
+            "height": null,
+            "id": "gravityArrow1",
+            "points": [
+              [300, 200],
+              [380, 270]
+            ],
+            "strokeColor": "#808080",
+            "strokeWidth": 3,
+            "text": null,
+            "type": "arrow",
+            "width": null,
+            "x": 0,
+            "y": 0
+          },
+          {
+            "backgroundColor": "transparent",
+            "fillStyle": "solid",
+            "fontSize": null,
+            "height": null,
+            "id": "gravityArrow2",
+            "points": [
+              [700, 200],
+              [620, 270]
+            ],
+            "strokeColor": "#808080",
+            "strokeWidth": 3,
+            "text": null,
+            "type": "arrow",
+            "width": null,
+            "x": 0,
+            "y": 0
+          },
+          {
+            "backgroundColor": "transparent",
+            "fillStyle": "solid",
+            "fontSize": null,
+            "height": null,
+            "id": "gravityArrow3",
+            "points": [
+              [500, 500],
+              [500, 400]
+            ],
+            "strokeColor": "#808080",
+            "strokeWidth": 3,
+            "text": null,
+            "type": "arrow",
+            "width": null,
+            "x": 0,
+            "y": 0
+          }
+        ]
+      },
+      "title": "What are Black Holes?",
+      "voiceover": "A black hole is a region in spacetime where gravity is so strong that nothing, not even light, can escape. They form from the remnants of massive stars that have collapsed in on themselves."
+    },
+    {
+      "scene": {
+        "elements": [
+          {
+            "backgroundColor": "#000000",
+            "fillStyle": "solid",
+            "fontSize": null,
+            "height": 200,
+            "id": "blackHoleBody2",
+            "points": null,
+            "strokeColor": "#000000",
+            "strokeWidth": 2,
+            "text": null,
+            "type": "ellipse",
+            "width": 200,
+            "x": 400,
+            "y": 300
+          },
+          {
+            "backgroundColor": "transparent",
+            "fillStyle": "solid",
+            "fontSize": null,
+            "height": 250,
+            "id": "eventHorizon",
+            "points": null,
+            "strokeColor": "#FFFFFF",
+            "strokeWidth": 2,
+            "text": null,
+            "type": "ellipse",
+            "width": 250,
+            "x": 375,
+            "y": 275
+          },
+          {
+            "backgroundColor": "transparent",
+            "fillStyle": "solid",
+            "fontSize": 20,
+            "height": null,
+            "id": "eventHorizonLabel",
+            "points": null,
+            "strokeColor": "transparent",
+            "strokeWidth": 0,
+            "text": "Event Horizon (Point of No Return)",
+            "type": "text",
+            "width": null,
+            "x": 500,
+            "y": 250
+          },
+          {
+            "backgroundColor": "#FFFFFF",
+            "fillStyle": "solid",
+            "fontSize": null,
+            "height": 10,
+            "id": "singularity",
+            "points": null,
+            "strokeColor": "#FFFFFF",
+            "strokeWidth": 1,
+            "text": null,
+            "type": "ellipse",
+            "width": 10,
+            "x": 495,
+            "y": 345
+          },
+          {
+            "backgroundColor": "transparent",
+            "fillStyle": "solid",
+            "fontSize": 20,
+            "height": null,
+            "id": "singularityLabel",
+            "points": null,
+            "strokeColor": "transparent",
+            "strokeWidth": 0,
+            "text": "Singularity",
+            "type": "text",
+            "width": null,
+            "x": 510,
+            "y": 340
+          },
+          {
+            "backgroundColor": "transparent",
+            "fillStyle": "solid",
+            "fontSize": null,
+            "height": null,
+            "id": "arrowToEventHorizon",
+            "points": [
+              [650, 270],
+              [570, 280]
+            ],
+            "strokeColor": "#FFFFFF",
+            "strokeWidth": 3,
+            "text": null,
+            "type": "arrow",
+            "width": null,
+            "x": 0,
+            "y": 0
+          }
+        ]
+      },
+      "title": "The Event Horizon and Singularity",
+      "voiceover": "The 'event horizon' is the boundary around a black hole beyond which no light or other radiation can escape. At the very center lies the 'singularity', a point of infinite density where the mass of the black hole is concentrated."
+    },
+    {
+      "scene": {
+        "elements": [
+          {
+            "backgroundColor": "#000000",
+            "fillStyle": "solid",
+            "fontSize": null,
+            "height": 80,
+            "id": "stellarBlackHole",
+            "points": null,
+            "strokeColor": "#000000",
+            "strokeWidth": 2,
+            "text": null,
+            "type": "ellipse",
+            "width": 80,
+            "x": 200,
+            "y": 300
+          },
+          {
+            "backgroundColor": "transparent",
+            "fillStyle": "solid",
+            "fontSize": 20,
+            "height": null,
+            "id": "stellarLabel",
+            "points": null,
+            "strokeColor": "transparent",
+            "strokeWidth": 0,
+            "text": "Stellar Black Hole (e.g., 5-20 solar masses)",
+            "type": "text",
+            "width": null,
+            "x": 100,
+            "y": 260
+          },
+          {
+            "backgroundColor": "#000000",
+            "fillStyle": "solid",
+            "fontSize": null,
+            "height": 300,
+            "id": "supermassiveBlackHole",
+            "points": null,
+            "strokeColor": "#000000",
+            "strokeWidth": 2,
+            "text": null,
+            "type": "ellipse",
+            "width": 300,
+            "x": 600,
+            "y": 250
+          },
+          {
+            "backgroundColor": "transparent",
+            "fillStyle": "solid",
+            "fontSize": 20,
+            "height": null,
+            "id": "supermassiveLabel",
+            "points": null,
+            "strokeColor": "transparent",
+            "strokeWidth": 0,
+            "text": "Supermassive Black Hole (millions to billions of solar masses)",
+            "type": "text",
+            "width": null,
+            "x": 500,
+            "y": 200
+          }
+        ]
+      },
+      "title": "Types of Black Holes",
+      "voiceover": "There are different types of black holes. Stellar-mass black holes, formed from collapsing stars, are typically a few to tens of times the mass of our Sun. Supermassive black holes, on the other hand, reside at the centers of most galaxies, like our Milky Way, and can be millions to billions of times more massive than the Sun."
+    }
+  ],
+  "topic": "Black Holes"
+}

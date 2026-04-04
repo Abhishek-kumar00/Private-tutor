@@ -1,0 +1,36 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+.env
+.env.local
+backend/inspect_client.py
+backend\list_models.py
+backend\models.txt
+backend\test_backend.py
+backend\test_backend2.py
+backend\test_genai.py
+backend\output.json
+backend\pdf
+backend\__pycache__
+.venv
