@@ -22,15 +22,3 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
-.env
-.env.local
-backend/inspect_client.py
-backend\list_models.py
-backend\models.txt
-backend\test_backend.py
-backend\test_backend2.py
-backend\test_genai.py
-backend\output.json
-backend\pdf
-backend\__pycache__
-.venv
