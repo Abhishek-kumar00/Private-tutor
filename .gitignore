@@ -1,0 +1,33 @@
+# Environment variables
+.env
+.env.local
+
+# Backend files
+backend/inspect_client.py
+backend/list_models.py
+backend/models.txt
+backend/test_backend.py
+backend/test_backend2.py
+backend/test_genai.py
+backend/output.json
+backend/pdf/
+backend/__pycache__/
+
+# Virtual Environment
+.venv/
+
+# Node modules and build artifacts (for frontend/root)
+node_modules/
+dist/
+dist-ssr/
+*.local
+
+# Editor settings
+.vscode/
+.idea/
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
