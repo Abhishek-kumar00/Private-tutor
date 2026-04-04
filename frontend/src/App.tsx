@@ -35,7 +35,7 @@ function App() {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const isDraggingGlobal = dragCounter > 0;
-  const isPdfExpanded = isHoveringPdf || isDraggingGlobal;
+  const isPdfExpanded = isHoveringPdf || isDraggingGlobal || pdfStatus === "uploading" || pdfStatus === "error";
 
   // ── TTS helpers ─────────────────────────────────────────────────────────────
   const speak = (text: string) => {
