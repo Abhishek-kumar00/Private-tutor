@@ -11,12 +11,13 @@ class SceneElement(BaseModel):
     backgroundColor: str = Field(description="e.g. 'transparent'")
     fillStyle: str = Field(description="e.g. 'solid'")
     strokeWidth: int
-    # Specific fields based on type
-    width: Optional[float]
-    height: Optional[float]
-    text: Optional[str]
-    fontSize: Optional[int]
-    points: Optional[List[List[float]]]
+    # Specific fields based on type – all optional with defaults
+    width: Optional[float] = None
+    height: Optional[float] = None
+    text: Optional[str] = None
+    fontSize: Optional[int] = None
+    points: Optional[List[List[float]]] = None
+
 
 class Scene(BaseModel):
     elements: List[SceneElement] = Field(
@@ -31,5 +32,5 @@ class Slide(BaseModel):
 class LessonPlan(BaseModel):
     topic: str
     slides: List[Slide] = Field(
-        description="A list of exactly 3 slides representing the progression of the lesson."
+        description="A list of 2–8 slides (dynamically chosen based on topic complexity) representing the progression of the lesson."
     )
