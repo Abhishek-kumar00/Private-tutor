@@ -1,47 +1,45 @@
 # main.py
 import os
+import sys
+
+# Force UTF-8 encoding to fix Windows emoji/charmap crashes
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
+if hasattr(sys.stderr, "reconfigure"):
+    sys.stderr.reconfigure(encoding="utf-8")
+
 import json
 import shutil
 import tempfile
 import logging
+from typing import Optional
+
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from dotenv import load_dotenv
 
-from schemas import LessonPlan
-from rag import RAG
+from schemas import LessonPlan, DoubtRequest
+from rag import RAG, combine_context, get_ncert_store
 from llm_router import MultiLLMClient
 
-# -------------------------
-# Load environment variables
-# -------------------------
+# ─── Bootstrap ───────────────────────────────────────────────────────────────
 load_dotenv()
 
-# -------------------------
-# Logging
-# -------------------------
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(levelname)s: %(message)s",
-)
+logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
 
-app = FastAPI()
+app = FastAPI(
+    title="Private Tutor API",
+    description="RAG-powered Class 11/12 PCM tutor — grounded in NCERT textbooks",
+    version="2.0.0",
+)
 
-# -------------------------
-# Multi-LLM Client (Gemini → Groq fallback)
-# -------------------------
+# ─── Singletons ───────────────────────────────────────────────────────────────
 llm = MultiLLMClient()
+rag = RAG()          # UserStore instance (session uploads)
 
-# -------------------------
-# Global RAG instance
-# -------------------------
-rag = RAG()
-
-# -------------------------
-# CORS
-# -------------------------
+# ─── CORS ─────────────────────────────────────────────────────────────────────
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -50,18 +48,20 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# -------------------------
-# Input Model
-# -------------------------
+# ─── Request models ───────────────────────────────────────────────────────────
+
 class UserQuery(BaseModel):
     topic: str
+    subject: Optional[str] = None       # "Physics" | "Chemistry" | "Mathematics"
+    grade_level: Optional[int] = None   # 11 or 12
 
 
-# -------------------------
-# PROMPT
-# -------------------------
+# ─────────────────────────────────────────────────────────────────────────────
+# MASTER PROMPT  (BASE_PROMPT unchanged — kept for Gemini structured-output)
+# ─────────────────────────────────────────────────────────────────────────────
 BASE_PROMPT = """
-You are a master teacher creating visual blackboard-style lessons.
+You are a master Class 11/12 PCM teacher creating visual blackboard-style lessons.
+Ground ALL content strictly in the provided NCERT textbook context.
 Every diagram must be INFORMATION-DENSE — every element must teach something.
 
 ========================================================
@@ -76,34 +76,22 @@ If the topic matches any of these categories, include a dedicated SPATIAL DIAGRA
   - Physics structures: Atom model, Wave anatomy, EM Spectrum
   - Engineering: Circuit, Engine cross-section, Bridge types
 
-For the Spatial Diagram slide, recreate the ACTUAL physical/spatial layout:
-  Water Cycle: sun ellipse top-right (yellow), cloud ellipses top-center (light blue),
-    mountain rects left side (grey/green), ocean rect bottom-right (blue), river rect
-    bottom-center; arrows: evaporation up, precipitation down, runoff right, label each.
-  Black Hole: large dark ellipse center=event horizon, surrounding orange ellipses=
-    accretion disk, blue arrow jets top+bottom, labels: "Singularity",
-    "Schwarzschild radius", "No escape"; small star ellipses being pulled in.
-  Solar System: large orange ellipse=Sun (left side), planet ellipses at increasing
-    x-positions labeled with name+distance from Sun.
-  Earth Layers: 4 concentric ellipses center-canvas: inner core(red), outer core
-    (orange), mantle(purple), crust(blue) — each labeled with temp & composition.
-  Cell: large ellipse=membrane, inner ellipses: nucleus, mitochondria, vacuole —
-    each labeled with function text.
-  Use the FULL 1000x800 canvas spatially. Do NOT compress into flow boxes.
+For the Spatial Diagram slide, recreate the ACTUAL physical/spatial layout using
+positioned ellipses and rects across the FULL 1000×800 canvas.
 
 ========================================================
 SLIDE COUNT & ARCHETYPES
 ========================================================
 Assess complexity, then pick slide count:
   SIMPLE (2-3): single concept/formula  MEDIUM (4-5): 2-3 sub-topics
-  COMPLEX (6-8): multi-layered/interconnected systems
+  COMPLEX (6-10): multi-layered/interconnected systems
 
 Slide archetypes to pick from:
   "What Is It?"      — analogy + definition + formula       [always FIRST]
   "Spatial Diagram"  — physical layout (if detected above) [slide 2 if applicable]
   "How Does It Work?"— numbered steps, arrows
   "Deep Dive"        — one sub-concept with equations
-  "Mechanism/Cycle" — cyclic arrows, loop stages
+  "Mechanism/Cycle"  — cyclic arrows, loop stages
   "Comparison"       — side-by-side columns
   "Key Numbers"      — values, constants, units
   "Why It Matters"   — applications radiating from center ellipse
@@ -112,100 +100,113 @@ Slide archetypes to pick from:
 ========================================================
 RULE 1 — EVERY SHAPE MUST HAVE A TEXT LABEL INSIDE IT
 ========================================================
-For EVERY rectangle or ellipse you draw at position (x, y, width, height),
-you MUST immediately add a text element INSIDE it like this:
-  Shape: { "id":"box1", "type":"rectangle", "x":50, "y":100, "width":200, "height":80, ... }
-  Label: { "id":"box1_lbl", "type":"text", "x":60, "y":125, "width":180, "height":30, "text":"SPECIFIC CONTENT HERE", "fontSize":14, ... }
-  (text x = shape_x + 10, text y = shape_y + shape_height/2 - 10)
+For EVERY rectangle or ellipse at position (x, y, width, height),
+immediately add a text element INSIDE it:
+  Shape: {"id":"box1","type":"rectangle","x":50,"y":100,"width":200,"height":80,...}
+  Label: {"id":"box1_lbl","type":"text","x":60,"y":125,"width":180,"height":30,"text":"SPECIFIC CONTENT","fontSize":14,...}
+  (text x = shape_x+10, text y = shape_y + shape_height/2 - 10)
 
 Text inside shapes must contain REAL information:
-  GOOD: "F = ma", "Mass = 10 kg", "Step 1: Input Signal", "CPU: 3.2 GHz", "Na+ ions rush in"
+  GOOD: "F = ma", "Mass = 10 kg", "Step 1: Input Signal", "Na⁺ ions rush in"
   BAD:  "Concept", "Box", "Real World", "Item", "Element"
 
 ========================================================
-RULE 2 — REQUIRED ELEMENTS PER SLIDE
+RULE 2 — REQUIRED ELEMENTS PER SLIDE (18-22)
 ========================================================
-Each slide MUST have AT LEAST 15 elements:
-  - 1x large TITLE text at top (x:300-500, y:20-40, fontSize:22, full topic name or key formula)
-  - 4+ labeled rectangles (each rectangle + its inner text label = 2 elements)
-  - 2+ labeled ellipses (each ellipse + its inner text = 2 elements)
-  - 2+ arrows with short text labels near them (describing what the arrow means)
-  - 2+ standalone annotation texts (small callouts, notes, formulas, or facts)
+  - 1× large TITLE text at top (x:300-500, y:20-40, fontSize:22)
+  - 1+ standalone EQUATION text (fontSize:22+, orange #e67700) IF formulae apply
+  - 4+ labeled rectangles (rect + inner text = 2 elements each)
+  - 2+ labeled ellipses (ellipse + inner text = 2 elements each)
+  - 2+ arrows with short text labels near them
+  - 1 summary rectangle at bottom (y~700) with inner text
 
 ========================================================
-RULE 3 — CANVAS LAYOUT (1000 x 800)
+RULE 3 — CANVAS LAYOUT (1000 × 800)
 ========================================================
-Use ALL 4 zones of the canvas. Do NOT cluster in one area:
-
-  TOP BANNER   (y: 10–80):  Slide title + key formula/definition
+Use ALL 4 zones:
+  TOP BANNER   (y: 10–80):  Slide title + key formula
   LEFT HALF    (x: 20–480): Primary concept / cause / input
   RIGHT HALF   (x: 520–980): Effect / result / comparison
-  BOTTOM STRIP (y: 680–780): Summary row, key takeaway, or legend
-
-Place arrows to connect LEFT to RIGHT to show flow/relationship.
-Use the BOTTOM STRIP for a summary rectangle that ties everything together.
+  BOTTOM STRIP (y: 680–780): Summary, key takeaway, or legend
 
 ========================================================
 RULE 4 — INFORMATIVE TEXT
 ========================================================
-Every text element must carry REAL content:
-  - Numbers and units: "9.8 m/s²", "λ = 450nm", "pH 7.4"
-  - Short definitions: "Force = push/pull", "Catalyst speeds reaction"
+  - Numbers & units: "9.8 m/s²", "λ = 450 nm", "pH 7.4"
+  - Definitions: "Force = push/pull", "Catalyst speeds reaction"
   - Process labels: "Step 1: Oxidation", "Input → Process → Output"
-  - Comparisons: "Series: same current", "Parallel: same voltage"
-  - Cause-effect: "More mass → less acceleration"
-  
-AVOID purely abstract labels. Every label should teach something.
+AVOID purely abstract labels.
 
 ========================================================
-RULE 5 — ARROW FORMAT (CRITICAL)
+RULE 5 — ARROW FORMAT
 ========================================================
 Arrows use RELATIVE points from their (x, y) starting position:
-  { "id":"arr1", "type":"arrow", "x":300, "y":200,
-    "strokeColor":"#000000", "backgroundColor":"transparent",
-    "fillStyle":"solid", "strokeWidth":2,
-    "width":null, "height":null, "text":null, "fontSize":null,
-    "points":[[0,0],[150,0]] }   ← goes 150px to the right
-  
-Right:  points [[0,0],[150,0]]
-Down:   points [[0,0],[0,100]]
-Diagonal: points [[0,0],[120,80]]
-
-Add a text element NEAR each arrow (offset by ~10px from arrow midpoint) to label what the arrow means.
-Example: arrow from Force box to Acceleration box → text label "causes"
+  Right:    points [[0,0],[150,0]]
+  Down:     points [[0,0],[0,100]]
+  Diagonal: points [[0,0],[120,80]]
+Add a text element NEAR each arrow describing the relationship.
 
 ========================================================
 RULE 6 — COLOR CODING
 ========================================================
-Use colors to organize meaning:
-  Blue   (#1971c2 stroke, #dbe4ff bg): Input / Cause / Given
-  Green  (#2f9e44 stroke, #d3f9d8 bg): Output / Result / Effect  
-  Orange (#e67700 stroke, #fff3bf bg): Key formula / Important fact
-  Purple (#7048e8 stroke, #f3d9fa bg): Process step / Mechanism
-  Red    (#c92a2a stroke, #ffe3e3 bg): Warning / Exception / Contrast
+  Blue   (#1971c2 / #dbe4ff): Input / Cause / Given
+  Green  (#2f9e44 / #d3f9d8): Output / Result / Effect
+  Orange (#e67700 / #fff3bf): Key formula / Important fact
+  Purple (#7048e8 / #f3d9fa): Process step / Mechanism
+  Red    (#c92a2a / #ffe3e3): Warning / Exception / Contrast
 
 ========================================================
-CONTENT RULES
+EQUATION_RULES — MANDATORY FOR QUANTITATIVE TOPICS
 ========================================================
-- Voiceover: 4-5 sentences. Explain WHY and HOW with specifics, not vague descriptions.
-- If document context is provided, use ONLY facts from it. Quote key terms exactly.
-- Keep text labels SHORT (max 5 words per text element) but SPECIFIC
-- Total elements per slide: 15–20
+1. EQUATION ELEMENT: Standalone text, fontSize 22+, strokeColor "#e67700",
+   placed near top area (y: 70-200):
+   {"id":"s2_eq1","type":"text","x":250,"y":80,"strokeColor":"#e67700",
+    "backgroundColor":"transparent","fillStyle":"solid","strokeWidth":1,
+    "width":500,"height":44,"text":"F = ma  [Force = Mass × Acceleration]","fontSize":22,"points":null}
+
+2. CONSTANTS & UNITS: Always state value + unit:
+   GOOD: "g = 9.8 m/s²", "c = 3×10⁸ m/s"  BAD: "g = constant"
+
+3. DERIVATION LADDER: Numbered purple rects stacked vertically, connected by arrows.
+
+4. EQUATIONS FIELD: Every slide must include "equations": ["F=ma"] or []
+
+========================================================
+QUESTIONS RULES — GENERATE EXACTLY 3 MCQs
+========================================================
+- Derive questions ONLY from the textbook context provided
+- Each question: 4 options ["A) ...","B) ...","C) ...","D) ..."]
+- correct_answer: single letter "A"/"B"/"C"/"D"
+- explanation: 1 sentence citing the textbook concept
 """
 
 
-def build_prompt(topic: str, rag_context: str | None) -> str:
+def build_prompt(
+    topic: str,
+    rag_context: Optional[str],
+    subject: Optional[str] = None,
+    grade_level: Optional[int] = None,
+) -> str:
+    meta = ""
+    if subject:
+        meta += f"Subject: {subject}\n"
+    if grade_level:
+        meta += f"Grade: Class {grade_level}\n"
+
     tail = (
         f'Topic: "{topic}"\n'
-        f"1. Check if a Spatial Diagram slide applies (see SPATIAL DIAGRAM DETECTION above).\n"
-        f"2. Assess complexity → SIMPLE(2-3) / MEDIUM(4-5) / COMPLEX(6-8 slides).\n"
-        f"3. Build slides using the correct archetypes. Each slide: 15-20 elements, "
-        f"full 1000x800 canvas, every shape labeled inside. IDs: s1_, s2_, ...sN_.\n"
+        f"{meta}"
+        f"1. Check if a Spatial Diagram slide applies.\n"
+        f"2. Assess complexity → SIMPLE(2-3) / MEDIUM(4-5) / COMPLEX(6-10).\n"
+        f"3. Build slides: 18-22 elements, full 1000×800 canvas, every shape labeled.\n"
+        f"   Use slide ID prefixes: s1_, s2_, … sN_\n"
+        f"4. Generate EXACTLY 3 MCQ questions grounded in the textbook context.\n"
     )
+
     if rag_context:
         return f"""{BASE_PROMPT}
 
-### DOCUMENT CONTEXT (use ONLY facts from this)
+### NCERT TEXTBOOK CONTEXT (ground ALL facts in this)
 {rag_context}
 
 {tail}"""
@@ -215,21 +216,37 @@ def build_prompt(topic: str, rag_context: str | None) -> str:
 {tail}"""
 
 
-
-
-# -------------------------
+# ─────────────────────────────────────────────────────────────────────────────
 # ENDPOINTS
-# -------------------------
+# ─────────────────────────────────────────────────────────────────────────────
+
+@app.get("/health")
+async def health():
+    """Quick liveness check."""
+    return {"status": "ok", "version": "2.0.0"}
+
 
 @app.get("/rag-status")
 async def rag_status():
-    return {"has_pdf": rag.has_data()}
+    """Return detailed status of both NCERT and user RAG stores."""
+    ncert = get_ncert_store()
+    return {
+        # NCERT knowledge base
+        "has_ncert":     ncert.is_available(),
+        "ncert_chunks":  ncert.chunk_count(),
+        # User upload
+        "has_user_pdf":  rag.has_data(),
+        "user_pdf_name": rag.current_filename(),
+        # Legacy field (frontend compatibility)
+        "has_pdf":       rag.has_data() or ncert.is_available(),
+    }
 
 
 @app.post("/upload-pdf")
 async def upload_pdf(file: UploadFile = File(...)):
+    """Upload a supplementary PDF. It is layered on top of the NCERT knowledge base."""
     if not file.filename or not file.filename.lower().endswith(".pdf"):
-        raise HTTPException(status_code=400, detail="Only PDF allowed")
+        raise HTTPException(status_code=400, detail="Only PDF files are accepted.")
 
     with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
         shutil.copyfileobj(file.file, tmp)
@@ -237,51 +254,88 @@ async def upload_pdf(file: UploadFile = File(...)):
 
     try:
         rag.reset()
-        rag.ingest_pdf(tmp_path)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        rag.ingest_pdf(tmp_path, filename=file.filename)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
     finally:
         os.unlink(tmp_path)
 
-    return {"message": "PDF ingested", "has_pdf": True}
+    return {"message": "PDF ingested", "has_pdf": True, "filename": file.filename}
 
 
 @app.delete("/clear-pdf")
 async def clear_pdf():
+    """Remove the user-uploaded PDF from the store."""
     rag.reset()
     return {"message": "PDF cleared", "has_pdf": False}
 
 
 @app.post("/generate-lesson")
 async def generate_lesson(query: UserQuery):
+    """
+    Generate a full lesson plan with diagrams and MCQs.
+    Grounded in NCERT textbooks when available; falls back to LLM knowledge.
+    """
     try:
-        rag_context = None
+        # ── Retrieve combined RAG context ─────────────────────────────────────
+        search_query = f"{query.topic}"
+        if query.subject:
+            search_query += f" {query.subject}"
+        if query.grade_level:
+            search_query += f" class {query.grade_level}"
 
-        if rag.has_data():
-            raw_context = rag.query(query.topic)
-            compressed = llm.compress_context(query.topic, raw_context)
+        rag_context, used_rag = combine_context(search_query, rag)
 
-            # fallback safety
+        # Compress if very long
+        if rag_context and len(rag_context) > 4000:
+            compressed = llm.compress_context(query.topic, rag_context)
             if compressed and len(compressed) > 50:
                 rag_context = compressed
-            else:
-                rag_context = raw_context
 
-        prompt = build_prompt(query.topic, rag_context)
+        prompt = build_prompt(
+            query.topic,
+            rag_context or None,
+            query.subject,
+            query.grade_level,
+        )
 
         lesson_plan_data = llm.generate_lesson(prompt, query.topic)
 
         return {
             "lesson_plan": lesson_plan_data,
-            "used_rag": rag_context is not None
+            "used_rag":    used_rag,
         }
 
-    except RuntimeError as e:
-        # All LLMs failed – surface a clear error to the frontend
-        logger.error(f"All LLMs failed: {e}")
-        return {"error": str(e)}
-
-    except Exception as e:
+    except RuntimeError as exc:
+        logger.error("All LLMs failed: %s", exc)
+        return {"error": str(exc)}
+    except Exception as exc:
         import traceback
         traceback.print_exc()
-        return {"error": str(e)}
+        return {"error": str(exc)}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# DOUBT / Q&A
+# ─────────────────────────────────────────────────────────────────────────────
+
+@app.post("/ask-doubt")
+async def ask_doubt(request: DoubtRequest):
+    """
+    Answer a student's in-lesson doubt, grounded in textbook context.
+    """
+    try:
+        # Pull context from both stores
+        context, _ = combine_context(request.question, rag, k_ncert=3, k_user=2)
+
+        answer = llm.answer_doubt(
+            topic=request.topic,
+            slide_title=request.slide_title,
+            question=request.question,
+            context=context,
+        )
+        return {"answer": answer}
+
+    except Exception as exc:
+        logger.error("[ask_doubt] Error: %s", exc)
+        return {"answer": "Sorry, I'm having trouble answering right now. Please try again!"}

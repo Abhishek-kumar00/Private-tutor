@@ -31,3 +31,7 @@ dist-ssr/
 *.njsproj
 *.sln
 *.sw?
+
+# Data and Vector Store (RAG)
+textbooks/
+backend/chroma_db/
